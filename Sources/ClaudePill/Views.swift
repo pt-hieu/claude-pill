@@ -30,44 +30,52 @@ func shortRelativeTime(from date: Date, to now: Date) -> String {
     }
 }
 
-/// The menu bar pill. It stretches to the width it is given and uses the primary color,
-/// which follows the menu bar's appearance (white on dark, black on light).
+/// The menu bar pill: a rounded rectangle filled with the primary color, which follows the menu bar's
+/// appearance (white on dark, black on light), with its content cut out. It stretches to the width it is given.
 struct PillView: View {
     let session: Session?
     let unreadCount: Int
     let now: Date
 
-    private static let maximumProjectNameLength = 18
+    // Each part has a fixed width, so the pill keeps its size and layout as the content updates.
+    private static let symbolWidth: CGFloat = 14
+    private static let titleWidth: CGFloat = 110
+    private static let timeWidth: CGFloat = 26
 
     var body: some View {
         let isUnread = unreadCount > 0
         HStack(spacing: 6) {
             Image(systemName: session?.status.symbolName ?? "sparkle")
                 .font(.system(size: 11, weight: .semibold))
-            Text(text)
-                .font(.system(size: 12, weight: isUnread ? .semibold : .regular))
+                .frame(width: Self.symbolWidth)
+            Text(session?.displayName ?? "Claude")
+                .truncationMode(.tail)
+                .frame(width: Self.titleWidth, alignment: .leading)
+            Text(time)
+                .monospacedDigit()
+                .frame(width: Self.timeWidth, alignment: .trailing)
             if unreadCount > 1 {
                 Text("+\(unreadCount - 1)")
                     .font(.system(size: 10, weight: .bold))
             }
         }
+        .font(.system(size: 12, weight: isUnread ? .semibold : .regular))
         .lineLimit(1)
-        .padding(.horizontal, 12)
-        // Matches the height of the system's status item highlight, so the pressed state fills the pill.
-        .frame(maxWidth: .infinity, minHeight: 24, maxHeight: 24)
-        .overlay(Capsule().strokeBorder(lineWidth: isUnread ? 1.5 : 1))
-        .foregroundStyle(Color.primary.opacity(isUnread ? 1 : 0.6))
+        .padding(.horizontal, 6)
+        // The content is cut out of a filled rounded rectangle, matching the filled system icons in the menu bar.
+        .blendMode(.destinationOut)
+        // Sized to the neighboring menu bar icons, so the system's taller click highlight surrounds the pill.
+        .frame(maxWidth: .infinity, minHeight: 18, maxHeight: 18)
+        .background(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .compositingGroup()
+        .foregroundStyle(Color.primary)
         .frame(maxHeight: .infinity)
     }
 
-    private var text: String {
-        guard let session else { return "Claude" }
-        var projectName = session.projectName
-        if projectName.count > Self.maximumProjectNameLength {
-            projectName = projectName.prefix(Self.maximumProjectNameLength - 1) + "…"
-        }
-        if session.status == .working { return projectName }
-        return "\(projectName)  ·  \(shortRelativeTime(from: session.updatedAt, to: now))"
+    /// Blank while working: the time since the last update is only worth showing once Claude stops.
+    private var time: String {
+        guard let session, session.status != .working else { return "" }
+        return shortRelativeTime(from: session.updatedAt, to: now)
     }
 }
 

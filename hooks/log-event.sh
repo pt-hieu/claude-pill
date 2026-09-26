@@ -16,6 +16,19 @@ while [ -n "$process_id" ] && [ "$process_id" -gt 1 ]; do
   process_id=$(ps -o ppid= -p "$process_id" | tr -d ' ')
 done
 
-jq -c --arg tty "$terminal_device" \
-  '{session_id, cwd, hook_event_name, message, tty: (if $tty == "" then null else $tty end), ts: now}' \
+payload=$(cat)
+
+# The session title lives only in the transcript: a title set with /rename wins over the generated one.
+# The generated title is written after the first prompt, so the first event of a session has none.
+transcript_path=$(printf '%s' "$payload" | jq -r '.transcript_path // empty')
+title=""
+if [ -f "$transcript_path" ]; then
+  title=$(grep -F '"type":"custom-title"' "$transcript_path" | tail -n 1 | jq -r '.customTitle // empty')
+  if [ -z "$title" ]; then
+    title=$(grep -F '"type":"ai-title"' "$transcript_path" | tail -n 1 | jq -r '.aiTitle // empty')
+  fi
+fi
+
+printf '%s' "$payload" | jq -c --arg tty "$terminal_device" --arg title "$title" \
+  '{session_id, cwd, hook_event_name, message, title: (if $title == "" then null else $title end), tty: (if $tty == "" then null else $tty end), ts: now}' \
   >> "$directory/events.jsonl"

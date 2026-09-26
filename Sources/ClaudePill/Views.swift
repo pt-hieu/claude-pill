@@ -155,7 +155,7 @@ private struct SessionRow: View {
                 .padding(.top, 1)
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
-                    Text(session.projectName).fontWeight(.semibold)
+                    Text(session.displayName).fontWeight(.semibold)
                     Spacer()
                     Text("\(session.status.label) · \(shortRelativeTime(from: session.updatedAt, to: now))")
                         .font(.caption)

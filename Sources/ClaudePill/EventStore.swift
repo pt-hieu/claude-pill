@@ -20,6 +20,8 @@ enum SessionStatus {
 struct Session: Identifiable {
     let id: String
     let projectPath: String
+    /// The title Claude Code shows for the session, set with /rename or generated from the conversation.
+    let title: String?
     let status: SessionStatus
     let message: String?
     /// The device of the terminal running the session, e.g. /dev/ttys003.
@@ -29,6 +31,9 @@ struct Session: Identifiable {
     var projectName: String {
         projectPath.isEmpty ? "unknown" : URL(fileURLWithPath: projectPath).lastPathComponent
     }
+
+    /// The title, or the project name until the session has one.
+    var displayName: String { title ?? projectName }
 }
 
 private struct HookEvent: Codable {
@@ -36,6 +41,7 @@ private struct HookEvent: Codable {
     let cwd: String?
     let hookEventName: String
     let message: String?
+    let title: String?
     let tty: String?
     let timestamp: Double
 
@@ -44,6 +50,7 @@ private struct HookEvent: Codable {
         case cwd
         case hookEventName = "hook_event_name"
         case message
+        case title
         case tty
         case timestamp = "ts"
     }
@@ -98,7 +105,12 @@ final class EventStore {
 
     private func reload() {
         var latestEventBySession: [String: HookEvent] = [:]
+        // Events logged before the title exists carry none, so keep the latest title from any event.
+        var latestTitleBySession: [String: (title: String, timestamp: Double)] = [:]
         for event in readEvents() where SessionStatus(hookEventName: event.hookEventName) != nil {
+            if let title = event.title, event.timestamp >= latestTitleBySession[event.sessionId]?.timestamp ?? 0 {
+                latestTitleBySession[event.sessionId] = (title, event.timestamp)
+            }
             if let existing = latestEventBySession[event.sessionId], existing.timestamp > event.timestamp { continue }
             latestEventBySession[event.sessionId] = event
         }
@@ -107,6 +119,7 @@ final class EventStore {
                 Session(
                     id: event.sessionId,
                     projectPath: event.cwd ?? "",
+                    title: latestTitleBySession[event.sessionId]?.title,
                     status: SessionStatus(hookEventName: event.hookEventName)!,
                     message: event.message,
                     terminalDevice: event.tty,

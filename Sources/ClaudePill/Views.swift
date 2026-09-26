@@ -73,6 +73,7 @@ struct PillView: View {
 
 struct SessionListView: View {
     let store: EventStore
+    let onSelect: (Session) -> Void
     let onQuit: () -> Void
 
     @State private var rowsHeight: CGFloat = 0
@@ -98,7 +99,7 @@ struct SessionListView: View {
                                 if session.id != store.sessions.first?.id {
                                     Divider().padding(.leading, 38)
                                 }
-                                SessionRow(session: session, now: context.date)
+                                SessionRow(session: session, now: context.date) { onSelect(session) }
                             }
                         }
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { rowsHeight = $0 }
@@ -143,6 +144,9 @@ private struct IconButton: View {
 private struct SessionRow: View {
     let session: Session
     let now: Date
+    let onSelect: () -> Void
+
+    @State private var isHovered = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -169,14 +173,12 @@ private struct SessionRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .background(isHovered ? Color.primary.opacity(0.08) : .clear)
         .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+        .onTapGesture(perform: onSelect)
+        .help("Open in Ghostty")
         .contextMenu {
-            Button("Open in Terminal") {
-                NSWorkspace.shared.open(
-                    [URL(fileURLWithPath: session.projectPath)],
-                    withApplicationAt: URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"),
-                    configuration: NSWorkspace.OpenConfiguration())
-            }
             Button("Reveal in Finder") {
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: session.projectPath)])
             }

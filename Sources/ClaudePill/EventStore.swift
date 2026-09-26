@@ -22,6 +22,8 @@ struct Session: Identifiable {
     let projectPath: String
     let status: SessionStatus
     let message: String?
+    /// The device of the terminal running the session, e.g. /dev/ttys003.
+    let terminalDevice: String?
     let updatedAt: Date
 
     var projectName: String {
@@ -34,6 +36,7 @@ private struct HookEvent: Codable {
     let cwd: String?
     let hookEventName: String
     let message: String?
+    let tty: String?
     let timestamp: Double
 
     enum CodingKeys: String, CodingKey {
@@ -41,6 +44,7 @@ private struct HookEvent: Codable {
         case cwd
         case hookEventName = "hook_event_name"
         case message
+        case tty
         case timestamp = "ts"
     }
 }
@@ -105,6 +109,7 @@ final class EventStore {
                     projectPath: event.cwd ?? "",
                     status: SessionStatus(hookEventName: event.hookEventName)!,
                     message: event.message,
+                    terminalDevice: event.tty,
                     updatedAt: Date(timeIntervalSince1970: event.timestamp)
                 )
             }

@@ -30,7 +30,13 @@ final class StatusController: NSObject {
         popover.behavior = .transient
         popover.animates = false
         let hostingController = NSHostingController(
-            rootView: SessionListView(store: store, onQuit: { NSApplication.shared.terminate(nil) }))
+            rootView: SessionListView(
+                store: store,
+                onSelect: { [weak self] session in
+                    self?.popover.performClose(nil)
+                    Ghostty.open(session)
+                },
+                onQuit: { NSApplication.shared.terminate(nil) }))
         hostingController.sizingOptions = .preferredContentSize
         popover.contentViewController = hostingController
 

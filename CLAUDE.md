@@ -15,8 +15,7 @@ macOS menu bar app: a pill showing the latest Claude Code session status, with a
 
 ## Gotchas
 
-- The status item's click highlight is drawn by the system (`MenuBarAgent`), not the app, and cannot be removed. It covers the whole status item window, including ~8pt of system padding each side of the button, so the pill is a view laid over that window, and the item length is the pill width minus that padding.
-- The padding is measured once on the first resize. Re-rendering on every resize feeds back into itself and crashes the app.
+- The status item's click highlight is drawn by the system (`MenuBarAgent`), not the app, and cannot be removed or resized. It covers the whole status item window: the full menu bar height, and ~8pt of system padding each side of the button, like the highlight of the system's own menu bar icons.
 - Round the item length up: the window snaps to whole points, and any shortfall truncates the pill text.
 - Ghostty sessions are matched by tty (the `GHOSTTY_SURFACE_ID` env var does not match AppleScript terminal ids). `focus` alone does not switch tabs, so select the tab and activate the window first. Avoid running focus scripts against the user's Ghostty while they work in it.
 - The installed hooks point at this repo's absolute path; moving the repo means re-running `install-hooks.sh` and removing the old entries.

@@ -111,7 +111,9 @@ struct SessionListView: View {
                                 if session.id != store.sessions.first?.id {
                                     Divider().padding(.leading, 38)
                                 }
-                                SessionRow(session: session, now: context.date) { onSelect(session) }
+                                SessionRow(
+                                    session: session, now: context.date,
+                                    onSelect: Ghostty.isInstalled ? { onSelect(session) } : nil)
                             }
                         }
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { rowsHeight = $0 }
@@ -156,7 +158,8 @@ private struct IconButton: View {
 private struct SessionRow: View {
     let session: Session
     let now: Date
-    let onSelect: () -> Void
+    /// Nil when there is no terminal to open the session in, which leaves the row inert.
+    let onSelect: (() -> Void)?
 
     @State private var isHovered = false
 
@@ -186,9 +189,9 @@ private struct SessionRow: View {
         .padding(.vertical, 8)
         .background(isHovered ? Color.primary.opacity(0.08) : .clear)
         .contentShape(Rectangle())
-        .onHover { isHovered = $0 }
-        .onTapGesture(perform: onSelect)
-        .help("Open in Ghostty")
+        .onHover { isHovered = $0 && onSelect != nil }
+        .onTapGesture { onSelect?() }
+        .help(onSelect == nil ? "" : "Open in Ghostty")
         .contextMenu {
             Button("Reveal in Finder") {
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: session.projectPath)])

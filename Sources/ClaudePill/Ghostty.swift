@@ -1,7 +1,9 @@
-import Foundation
+import AppKit
 
 /// Brings a session's terminal to the front in Ghostty through its AppleScript dictionary.
 enum Ghostty {
+    static let isInstalled = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.mitchellh.ghostty") != nil
+
     /// Focuses the terminal on the session's device, selecting its tab and window first because
     /// `focus` alone does not switch tabs. Opens a new tab in the session's folder when that
     /// terminal is gone.

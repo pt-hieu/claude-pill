@@ -104,6 +104,11 @@ final class EventStore {
     }
 
     private func reload() {
+        // Ended sessions clear themselves: drop their events before folding the log.
+        let endedSessionIds = Set(readEvents().filter { $0.hookEventName == "SessionEnd" }.map(\.sessionId))
+        if !endedSessionIds.isEmpty {
+            rewriteLog { !endedSessionIds.contains($0.sessionId) }
+        }
         var latestEventBySession: [String: HookEvent] = [:]
         // Events logged before the title exists carry none, so keep the latest title from any event.
         var latestTitleBySession: [String: (title: String, timestamp: Double)] = [:]

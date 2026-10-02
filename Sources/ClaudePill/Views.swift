@@ -1,12 +1,12 @@
 import SwiftUI
 
 extension SessionStatus {
-    var symbolName: String {
+    var iconName: String {
         switch self {
-        case .working: "hourglass"
-        case .finished: "checkmark.circle"
-        case .needsInput: "hand.raised"
-        case .ended: "stop.circle"
+        case .working: "clock"
+        case .finished: "circle-check"
+        case .needsInput: "hand"
+        case .ended: "circle-stop"
         }
     }
 
@@ -16,6 +16,40 @@ extension SessionStatus {
         case .finished: "Done"
         case .needsInput: "Needs you"
         case .ended: "Ended"
+        }
+    }
+}
+
+/// A Lucide icon (lucide.dev), bundled as SVG by build.sh. Drawn as a template, so it takes the foreground style.
+struct LucideIcon: View {
+    let name: String
+    let size: CGFloat
+
+    @MainActor private static var images: [String: NSImage] = [:]
+
+    var body: some View {
+        Image(nsImage: Self.image(named: name))
+            .renderingMode(.template)
+            .resizable()
+            .frame(width: size, height: size)
+    }
+
+    @MainActor private static func image(named name: String) -> NSImage {
+        if let image = images[name] { return image }
+        let url = Bundle.main.url(forResource: name, withExtension: "svg", subdirectory: "Icons")
+        let image = url.flatMap(NSImage.init(contentsOf:)) ?? NSImage()
+        image.isTemplate = true
+        images[name] = image
+        return image
+    }
+}
+
+extension PillStatus {
+    var iconName: String {
+        switch self {
+        case .noSessions: "sparkle"
+        case .latest(let status): status.iconName
+        case .workingWithUnseenFinish: "clock-check"
         }
     }
 }
@@ -31,51 +65,21 @@ func shortRelativeTime(from date: Date, to now: Date) -> String {
 }
 
 /// The menu bar pill: a rounded rectangle filled with the primary color, which follows the menu bar's
-/// appearance (white on dark, black on light), with its content cut out. It stretches to the width it is given.
+/// appearance (white on dark, black on light), with the status icon cut out.
 struct PillView: View {
-    let session: Session?
-    let unreadCount: Int
-    let now: Date
-
-    // Each part has a fixed width, so the pill keeps its size and layout as the content updates.
-    private static let symbolWidth: CGFloat = 14
-    private static let titleWidth: CGFloat = 110
-    private static let timeWidth: CGFloat = 26
+    let status: PillStatus
 
     var body: some View {
-        let isUnread = unreadCount > 0
-        HStack(spacing: 6) {
-            Image(systemName: session?.status.symbolName ?? "sparkle")
-                .font(.system(size: 11, weight: .semibold))
-                .frame(width: Self.symbolWidth)
-            Text(session?.displayName ?? "Claude")
-                .truncationMode(.tail)
-                .frame(width: Self.titleWidth, alignment: .leading)
-            Text(time)
-                .monospacedDigit()
-                .frame(width: Self.timeWidth, alignment: .trailing)
-            if unreadCount > 1 {
-                Text("+\(unreadCount - 1)")
-                    .font(.system(size: 10, weight: .bold))
-            }
-        }
-        .font(.system(size: 12, weight: isUnread ? .semibold : .regular))
-        .lineLimit(1)
-        .padding(.horizontal, 6)
-        // The content is cut out of a filled rounded rectangle, matching the filled system icons in the menu bar.
-        .blendMode(.destinationOut)
-        // Sized to the neighboring menu bar icons, so the system's taller click highlight surrounds the pill.
-        .frame(maxWidth: .infinity, minHeight: 18, maxHeight: 18)
-        .background(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        .compositingGroup()
-        .foregroundStyle(Color.primary)
-        .frame(maxHeight: .infinity)
-    }
-
-    /// Blank while working: the time since the last update is only worth showing once Claude stops.
-    private var time: String {
-        guard let session, session.status != .working else { return "" }
-        return shortRelativeTime(from: session.updatedAt, to: now)
+        LucideIcon(name: status.iconName, size: 14)
+            .padding(.horizontal, 6)
+            // The content is cut out of a filled rounded rectangle, matching the filled system icons in the menu bar.
+            .blendMode(.destinationOut)
+            // Sized to the neighboring menu bar icons, so the system's taller click highlight surrounds the pill.
+            .frame(maxWidth: .infinity, minHeight: 18, maxHeight: 18)
+            .background(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .compositingGroup()
+            .foregroundStyle(Color.primary)
+            .frame(maxHeight: .infinity)
     }
 }
 
@@ -158,8 +162,7 @@ private struct SessionRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: session.status.symbolName)
-                .frame(width: 16)
+            LucideIcon(name: session.status.iconName, size: 16)
                 .padding(.top, 1)
             VStack(alignment: .leading, spacing: 2) {
                 HStack {

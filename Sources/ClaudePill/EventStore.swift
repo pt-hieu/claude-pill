@@ -17,6 +17,14 @@ enum SessionStatus {
     var isActive: Bool { self == .working || self == .needsInput }
 }
 
+/// What the menu bar pill shows, summarizing every session.
+enum PillStatus {
+    case noSessions
+    case latest(SessionStatus)
+    /// Some session is still working and another finished since the panel was last seen.
+    case workingWithUnseenFinish
+}
+
 struct Session: Identifiable {
     let id: String
     let projectPath: String
@@ -69,20 +77,20 @@ private struct HookEvent: Codable {
 @Observable
 final class EventStore {
     private(set) var sessions: [Session] = []
-    private var readTimestamps: [String: Double]
+    private var panelSeenAt: Date
 
     @ObservationIgnored var onChange: (() -> Void)?
     @ObservationIgnored private var watcher: DispatchSourceFileSystemObject?
 
     private static let retention: TimeInterval = 7 * 24 * 60 * 60
-    private static let readTimestampsKey = "readTimestamps"
+    private static let panelSeenAtKey = "panelSeenAt"
 
     let logURL: URL = FileManager.default
         .urls(for: .cachesDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("ClaudePill/events.jsonl")
 
     init() {
-        readTimestamps = UserDefaults.standard.dictionary(forKey: Self.readTimestampsKey) as? [String: Double] ?? [:]
+        panelSeenAt = UserDefaults.standard.object(forKey: Self.panelSeenAtKey) as? Date ?? .distantPast
         ensureLogExists()
         rewriteLog { $0.timestamp > Date().timeIntervalSince1970 - Self.retention }
         reload()
@@ -91,17 +99,20 @@ final class EventStore {
 
     var latestSession: Session? { sessions.first }
 
-    var unreadCount: Int { sessions.filter(isUnread).count }
-
-    func isUnread(_ session: Session) -> Bool {
-        session.updatedAt.timeIntervalSince1970 > readTimestamps[session.id, default: 0]
+    /// A session needing input wins, since it is blocked on the user. Otherwise any working session
+    /// keeps the pill on working, and the latest session decides once none is.
+    var pillStatus: PillStatus {
+        if sessions.contains(where: { $0.status == .needsInput }) { return .latest(.needsInput) }
+        if sessions.contains(where: { $0.status == .working }) {
+            let hasUnseenFinish = sessions.contains { $0.status == .finished && $0.updatedAt > panelSeenAt }
+            return hasUnseenFinish ? .workingWithUnseenFinish : .latest(.working)
+        }
+        return latestSession.map { .latest($0.status) } ?? .noSessions
     }
 
-    func markAllRead() {
-        for session in sessions {
-            readTimestamps[session.id] = session.updatedAt.timeIntervalSince1970
-        }
-        UserDefaults.standard.set(readTimestamps, forKey: Self.readTimestampsKey)
+    func markPanelSeen() {
+        panelSeenAt = .now
+        UserDefaults.standard.set(panelSeenAt, forKey: Self.panelSeenAtKey)
         onChange?()
     }
 

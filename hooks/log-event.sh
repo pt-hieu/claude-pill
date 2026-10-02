@@ -1,5 +1,10 @@
 #!/bin/sh
 # Claude Code hook: appends the hook payload to the ClaudePill event log.
+if ! command -v jq >/dev/null; then
+  echo "ClaudePill hook needs jq: install it with 'brew install jq'." >&2
+  exit 1
+fi
+
 directory="$HOME/Library/Caches/ClaudePill"
 mkdir -p "$directory"
 

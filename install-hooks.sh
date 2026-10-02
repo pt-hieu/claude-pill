@@ -4,6 +4,11 @@
 set -eu
 cd "$(dirname "$0")"
 
+if ! command -v jq >/dev/null; then
+  echo "ClaudePill needs jq: install it with 'brew install jq', then run this again." >&2
+  exit 1
+fi
+
 settings="$HOME/.claude/settings.json"
 hook_command="$(pwd)/hooks/log-event.sh"
 chmod +x "$hook_command"

@@ -40,6 +40,7 @@ private struct HookEvent: Codable {
     let sessionId: String
     let cwd: String?
     let hookEventName: String
+    let notificationType: String?
     let message: String?
     let title: String?
     let tty: String?
@@ -49,10 +50,17 @@ private struct HookEvent: Codable {
         case sessionId = "session_id"
         case cwd
         case hookEventName = "hook_event_name"
+        case notificationType = "notification_type"
         case message
         case title
         case tty
         case timestamp = "ts"
+    }
+
+    /// Nil for events that do not change a session's status. Claude Code sends an idle reminder
+    /// about a minute after every finished turn, which is not a request for input.
+    var status: SessionStatus? {
+        notificationType == "idle_prompt" ? nil : SessionStatus(hookEventName: hookEventName)
     }
 }
 
@@ -112,7 +120,7 @@ final class EventStore {
         var latestEventBySession: [String: HookEvent] = [:]
         // Events logged before the title exists carry none, so keep the latest title from any event.
         var latestTitleBySession: [String: (title: String, timestamp: Double)] = [:]
-        for event in readEvents() where SessionStatus(hookEventName: event.hookEventName) != nil {
+        for event in readEvents() where event.status != nil {
             if let title = event.title, event.timestamp >= latestTitleBySession[event.sessionId]?.timestamp ?? 0 {
                 latestTitleBySession[event.sessionId] = (title, event.timestamp)
             }
@@ -125,7 +133,7 @@ final class EventStore {
                     id: event.sessionId,
                     projectPath: event.cwd ?? "",
                     title: latestTitleBySession[event.sessionId]?.title,
-                    status: SessionStatus(hookEventName: event.hookEventName)!,
+                    status: event.status!,
                     message: event.message,
                     terminalDevice: event.tty,
                     updatedAt: Date(timeIntervalSince1970: event.timestamp)

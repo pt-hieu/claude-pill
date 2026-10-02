@@ -30,5 +30,5 @@ if [ -f "$transcript_path" ]; then
 fi
 
 printf '%s' "$payload" | jq -c --arg tty "$terminal_device" --arg title "$title" \
-  '{session_id, cwd, hook_event_name, message, title: (if $title == "" then null else $title end), tty: (if $tty == "" then null else $tty end), ts: now}' \
+  '{session_id, cwd, hook_event_name, notification_type, message, title: (if $title == "" then null else $title end), tty: (if $tty == "" then null else $tty end), ts: now}' \
   >> "$directory/events.jsonl"

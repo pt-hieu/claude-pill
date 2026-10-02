@@ -5,7 +5,7 @@
 	<key>CFBundleExecutable</key>
 	<string>ClaudePill</string>
 	<key>CFBundleIdentifier</key>
-	<string>io.github.pt-hieu.claude-pill</string>
+	<string>dev.superbrian.claude-pill</string>
 	<key>CFBundleName</key>
 	<string>ClaudePill</string>
 	<key>CFBundlePackageType</key>

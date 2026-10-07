@@ -30,10 +30,10 @@ Click the pill to list sessions. Click a session to jump to its terminal in [Gho
 ```sh
 git clone https://github.com/pt-hieu/claude-pill.git
 cd claude-pill
-./install-hooks.sh
-./build.sh
-open build/ClaudePill.app
+./run.sh
 ```
+
+`run.sh` installs the hooks, builds `build/ClaudePill.app`, and launches it, quitting any running copy first. Run it again after pulling changes.
 
 `install-hooks.sh` adds ClaudePill's hook to `~/.claude/settings.json` for the `UserPromptSubmit`, `Stop`, `Notification` and `SessionEnd` events, after saving a backup to `~/.claude/settings.json.bak`. Running it again changes nothing. Sessions show up from their next event.
 

@@ -4,7 +4,7 @@ macOS menu bar app: a pill showing the latest Claude Code session status, with a
 
 ## Run and verify
 
-- Rebuild and relaunch: `./build.sh && pkill -x ClaudePill; open build/ClaudePill.app`
+- Install hooks, rebuild and relaunch: `./run.sh`
 - Feed a fake event by piping hook JSON into the script: `echo '{"session_id":"test","cwd":"/path","hook_event_name":"Stop"}' | hooks/log-event.sh`
 - Claude Code usually cannot see the screen here (no Screen Recording or Accessibility permission). Ask the user to check the UI. To inspect layout, write values to a file in `/tmp`: `NSLog` output does not show up in `log show`.
 

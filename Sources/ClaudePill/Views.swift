@@ -182,6 +182,14 @@ private struct SessionRow: View {
                 if session.status == .needsInput, let message = session.message {
                     Text(message).font(.caption)
                 }
+                ForEach(session.runningTasks) { task in
+                    HStack(spacing: 4) {
+                        LucideIcon(name: task.kind == .workflow ? "workflow" : "bot", size: 11)
+                        Text(task.label)
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
             }
             .lineLimit(1)
         }

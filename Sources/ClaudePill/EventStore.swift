@@ -25,6 +25,15 @@ enum PillStatus {
     case workingWithUnseenFinish
 }
 
+/// A workflow or subagent that a session is running.
+struct AgentTask: Identifiable {
+    enum Kind { case workflow, subagent }
+
+    let id: String
+    let kind: Kind
+    let label: String
+}
+
 struct Session: Identifiable {
     let id: String
     let projectPath: String
@@ -35,6 +44,7 @@ struct Session: Identifiable {
     /// The device of the terminal running the session, e.g. /dev/ttys003.
     let terminalDevice: String?
     let updatedAt: Date
+    let runningTasks: [AgentTask]
 
     var projectName: String {
         projectPath.isEmpty ? "unknown" : URL(fileURLWithPath: projectPath).lastPathComponent
@@ -44,12 +54,26 @@ struct Session: Identifiable {
     var displayName: String { title ?? projectName }
 }
 
+/// An entry of the `background_tasks` list that Claude Code sends with Stop and SubagentStop:
+/// a workflow or background subagent still running when the event fired.
+private struct BackgroundTask: Codable {
+    let id: String
+    let type: String
+    let description: String?
+    let name: String?
+
+    var isWorkflow: Bool { type == "workflow" }
+}
+
 private struct HookEvent: Codable {
     let sessionId: String
     let cwd: String?
     let hookEventName: String
     let notificationType: String?
     let message: String?
+    let agentId: String?
+    let agentType: String?
+    let backgroundTasks: [BackgroundTask]?
     let title: String?
     let tty: String?
     let timestamp: Double
@@ -60,6 +84,9 @@ private struct HookEvent: Codable {
         case hookEventName = "hook_event_name"
         case notificationType = "notification_type"
         case message
+        case agentId = "agent_id"
+        case agentType = "agent_type"
+        case backgroundTasks = "background_tasks"
         case title
         case tty
         case timestamp = "ts"
@@ -85,11 +112,14 @@ final class EventStore {
     private static let retention: TimeInterval = 7 * 24 * 60 * 60
     private static let panelSeenAtKey = "panelSeenAt"
 
-    let logURL: URL = FileManager.default
+    static let defaultLogURL: URL = FileManager.default
         .urls(for: .cachesDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("ClaudePill/events.jsonl")
 
-    init() {
+    let logURL: URL
+
+    init(logURL: URL = defaultLogURL) {
+        self.logURL = logURL
         panelSeenAt = UserDefaults.standard.object(forKey: Self.panelSeenAtKey) as? Date ?? .distantPast
         ensureLogExists()
         rewriteLog { $0.timestamp > Date().timeIntervalSince1970 - Self.retention }
@@ -128,30 +158,85 @@ final class EventStore {
         if !endedSessionIds.isEmpty {
             rewriteLog { !endedSessionIds.contains($0.sessionId) }
         }
+        let events = readEvents()
         var latestEventBySession: [String: HookEvent] = [:]
         // Events logged before the title exists carry none, so keep the latest title from any event.
         var latestTitleBySession: [String: (title: String, timestamp: Double)] = [:]
-        for event in readEvents() where event.status != nil {
+        for event in events where event.status != nil {
             if let title = event.title, event.timestamp >= latestTitleBySession[event.sessionId]?.timestamp ?? 0 {
                 latestTitleBySession[event.sessionId] = (title, event.timestamp)
             }
             if let existing = latestEventBySession[event.sessionId], existing.timestamp > event.timestamp { continue }
             latestEventBySession[event.sessionId] = event
         }
+        let eventsBySession = Dictionary(grouping: events, by: \.sessionId)
         sessions = latestEventBySession.values
             .map { event in
-                Session(
+                let runningTasks = Self.runningTasks(
+                    from: (eventsBySession[event.sessionId] ?? []).sorted { $0.timestamp < $1.timestamp })
+                // Claude Code fires Stop while workflows and background subagents keep running.
+                let status = event.status == .finished && !runningTasks.isEmpty ? .working : event.status!
+                return Session(
                     id: event.sessionId,
                     projectPath: event.cwd ?? "",
                     title: latestTitleBySession[event.sessionId]?.title,
-                    status: event.status!,
+                    status: status,
                     message: event.message,
                     terminalDevice: event.tty,
-                    updatedAt: Date(timeIntervalSince1970: event.timestamp)
+                    updatedAt: Date(timeIntervalSince1970: event.timestamp),
+                    runningTasks: runningTasks
                 )
             }
             .sorted { $0.updatedAt > $1.updatedAt }
         onChange?()
+    }
+
+    private static let workflowAgentType = "workflow-subagent"
+
+    /// Folds a session's events, oldest first, into the workflows and subagents it is still running.
+    /// Subagents open and close with SubagentStart and SubagentStop. Workflows are known only from the
+    /// `background_tasks` snapshots; their agents stand in for them until the first snapshot arrives.
+    private static func runningTasks(from events: [HookEvent]) -> [AgentTask] {
+        var openAgents: [(id: String, agentType: String)] = []
+        var workflows: [BackgroundTask] = []
+        var subagentDescriptions: [String: String] = [:]
+        for event in events {
+            let snapshot = event.backgroundTasks
+            for task in snapshot ?? [] where !task.isWorkflow {
+                subagentDescriptions[task.id] = task.description
+            }
+            switch event.hookEventName {
+            case "SubagentStart":
+                if let agentId = event.agentId, !openAgents.contains(where: { $0.id == agentId }) {
+                    openAgents.append((agentId, event.agentType ?? ""))
+                }
+            case "SubagentStop":
+                openAgents.removeAll { $0.id == event.agentId }
+                if let snapshot { workflows = snapshot.filter(\.isWorkflow) }
+            case "Stop":
+                guard let snapshot else { break }
+                workflows = snapshot.filter(\.isWorkflow)
+                // The turn is over, so only agents running in the background can still be open.
+                let backgroundAgentIds = Set(snapshot.filter { !$0.isWorkflow }.map(\.id))
+                openAgents.removeAll { agent in
+                    agent.agentType == workflowAgentType ? workflows.isEmpty : !backgroundAgentIds.contains(agent.id)
+                }
+            default:
+                break
+            }
+        }
+        let workflowTasks = workflows.map { workflow in
+            AgentTask(id: workflow.id, kind: .workflow, label: workflow.description ?? workflow.name ?? "Workflow")
+        }
+        let unlistedWorkflowTasks =
+            workflows.isEmpty && openAgents.contains(where: { $0.agentType == workflowAgentType })
+            ? [AgentTask(id: workflowAgentType, kind: .workflow, label: "Workflow")] : []
+        let subagentTasks = openAgents.filter { $0.agentType != workflowAgentType }.map { agent in
+            AgentTask(
+                id: agent.id, kind: .subagent,
+                label: subagentDescriptions[agent.id] ?? (agent.agentType.isEmpty ? "Subagent" : agent.agentType))
+        }
+        return workflowTasks + unlistedWorkflowTasks + subagentTasks
     }
 
     private func readEvents() -> [HookEvent] {

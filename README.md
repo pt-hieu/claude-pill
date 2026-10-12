@@ -3,19 +3,19 @@
 A macOS menu bar pill showing the status of your Claude Code sessions, with a panel listing every session.
 
 > [!NOTE]
-> This app is vibecoded: it was written almost entirely by Claude Code, with no tests. It works on its author's machine; expect rough edges elsewhere.
+> This app is vibecoded: it was written almost entirely by Claude Code, with few tests. It works on its author's machine; expect rough edges elsewhere.
 
 The pill shows one icon summarizing all sessions:
 
 | Icon | Meaning |
 | --- | --- |
 | Hand | A session is waiting for you (a permission prompt or question) |
-| Clock | A session is working |
+| Clock | A session is working, or still running a workflow or background subagent |
 | Clock with check | A session is working and another finished since you last opened the panel |
 | Circle check | The latest session is done |
 | Sparkle | No sessions |
 
-Click the pill to list sessions. Click a session to jump to its terminal in [Ghostty](https://ghostty.org); right-click it to reveal or copy its folder.
+Click the pill to list sessions, each with the workflows and subagents it is running. Click a session to jump to its terminal in [Ghostty](https://ghostty.org); right-click it to reveal or copy its folder.
 
 ## Requirements
 
@@ -35,7 +35,7 @@ cd claude-pill
 
 `run.sh` installs the hooks, builds `build/ClaudePill.app`, and launches it, quitting any running copy first. Run it again after pulling changes.
 
-`install-hooks.sh` adds ClaudePill's hook to `~/.claude/settings.json` for the `UserPromptSubmit`, `Stop`, `Notification` and `SessionEnd` events, after saving a backup to `~/.claude/settings.json.bak`. Running it again changes nothing. Sessions show up from their next event.
+`install-hooks.sh` adds ClaudePill's hook to `~/.claude/settings.json` for the `UserPromptSubmit`, `Stop`, `Notification`, `SessionEnd`, `SubagentStart` and `SubagentStop` events, after saving a backup to `~/.claude/settings.json.bak`. Running it again changes nothing. Sessions show up from their next event.
 
 The hooks point at the clone's absolute path, so keep the clone where it is. To move it, run `./uninstall-hooks.sh` first, move it, then run `./install-hooks.sh` from the new place.
 
@@ -47,7 +47,7 @@ The first time you jump to a session, macOS asks to let ClaudePill control Ghost
 
 Each hook event runs `hooks/log-event.sh`, which appends one line to `~/Library/Caches/ClaudePill/events.jsonl`. The app watches that file and keeps the latest event per session.
 
-Each line holds the session id, working directory, event name, notification message, session title and terminal device. Nothing leaves your machine. The app keeps the log small: it drops events older than seven days and events of sessions that ended.
+Each line holds the session id, working directory, event name, notification message, subagent id and type, running background tasks, session title and terminal device. Nothing leaves your machine. The app keeps the log small: it drops events older than seven days and events of sessions that ended.
 
 ## Uninstall
 

@@ -15,7 +15,7 @@ chmod +x "$hook_command"
 [ -f "$settings" ] || echo '{}' > "$settings"
 
 updated="$(jq --arg command "$hook_command" '
-  reduce ("UserPromptSubmit", "Stop", "Notification", "SessionEnd") as $event (.;
+  reduce ("UserPromptSubmit", "Stop", "Notification", "SessionEnd", "SubagentStart", "SubagentStop") as $event (.;
     if any(.hooks[$event][]?.hooks[]?; .command == $command) then .
     else .hooks[$event] += [{hooks: [{type: "command", command: $command}]}]
     end)
